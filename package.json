@@ -1,0 +1,7 @@
+{
+  "name": "nos-courses",
+  "private": true,
+  "dependencies": {
+    "pg": "^8.11.3"
+  }
+}
