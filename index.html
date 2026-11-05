@@ -338,8 +338,7 @@ function renderBudget(){
         h("div",null,h("span",null,"Dépensé"),h("b",{class:"num"},eur.format(spent))),
         h("div",null,h("span",null,"Budget du mois"),h("b",{class:"num"},eur.format(S.budget)))),
       pace),
-    h("button",{class:"primary",onclick:()=>document.getElementById("file").click()},h("span",{class:"ic"},"📸"),"Scanner un ticket"),
-    h("button",{class:"link",onclick:()=>openTicket(null,null)},"✏️ Saisir sans photo"),
+    h("button",{class:"primary",onclick:()=>openTicket(null,null)},h("span",{class:"ic"},"🧾"),"Ajouter un ticket"),
     tix.length?h("div",{class:"recent"},h("h3",null,"🧾 Derniers tickets"),h("div",{class:"card"},tix.map(ticketRow))):null,
     h("div",{class:"foot"},h("span",{class:"num"},"🎯 Budget mensuel : "+eur.format(S.budget)),h("button",{onclick:openBudget},"Modifier"))
   );
