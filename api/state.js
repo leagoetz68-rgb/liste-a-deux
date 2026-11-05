@@ -7,7 +7,7 @@ module.exports = async (req, res) => {
     const p = await db();
     const [s, i, t] = await Promise.all([
       p.query("SELECT value FROM settings WHERE key = 'budget'"),
-      p.query('SELECT id, name, cat, done FROM items ORDER BY created_at, id'),
+      p.query('SELECT id, name, cat, done, urgent FROM items ORDER BY created_at, id'),
       p.query("SELECT id, store, to_char(date, 'YYYY-MM-DD') AS date, total::float8 AS total FROM tickets ORDER BY date DESC, id DESC"),
     ]);
     res.setHeader('Cache-Control', 'no-store');

@@ -37,6 +37,7 @@ async function db() {
         done       BOOLEAN NOT NULL DEFAULT FALSE,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
+      ALTER TABLE items ADD COLUMN IF NOT EXISTS urgent BOOLEAN NOT NULL DEFAULT FALSE;
       CREATE TABLE IF NOT EXISTS tickets (
         id         SERIAL PRIMARY KEY,
         store      TEXT NOT NULL DEFAULT '',

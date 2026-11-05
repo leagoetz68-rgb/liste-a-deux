@@ -12,12 +12,13 @@ module.exports = async (req, res) => {
       const name = String(b.name || '').trim().slice(0, 120);
       const cat = CATS.includes(b.cat) ? b.cat : 'autre';
       if (!name) return res.status(400).json({ error: 'Nom manquant' });
-      const r = await p.query('INSERT INTO items (name, cat) VALUES ($1, $2) RETURNING id, name, cat, done', [name, cat]);
+      const r = await p.query('INSERT INTO items (name, cat) VALUES ($1, $2) RETURNING id, name, cat, done, urgent', [name, cat]);
       return res.status(200).json(r.rows[0]);
     }
     if (req.method === 'PATCH') {
       const b = body(req);
-      await p.query('UPDATE items SET done = $1 WHERE id = $2', [!!b.done, Number(b.id)]);
+      if (typeof b.urgent === 'boolean') await p.query('UPDATE items SET urgent = $1 WHERE id = $2', [b.urgent, Number(b.id)]);
+      if (typeof b.done === 'boolean') await p.query('UPDATE items SET done = $1 WHERE id = $2', [b.done, Number(b.id)]);
       return res.status(200).json({ ok: true });
     }
     if (req.method === 'DELETE') {

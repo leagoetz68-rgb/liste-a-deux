@@ -76,6 +76,13 @@ h2{font-size:1.8rem;letter-spacing:-.025em;margin:6px 4px 18px;font-weight:800}
 .check:active{transform:scale(.85)}
 .item.done .check{background:var(--accent);border-color:var(--accent)}
 .item.done .check::after{content:"";width:11px;height:6px;border-left:3px solid #fff;border-bottom:3px solid #fff;transform:rotate(-45deg) translate(1px,-1px)}
+.urg{flex:none;width:30px;height:30px;border-radius:50%;border:1.5px solid var(--line);background:none;padding:0;font-weight:800;color:var(--muted);font-size:.85rem}
+.item.urgent .urg{background:#E5484D;border-color:#E5484D;color:#fff}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:#E5484D;margin-right:8px;vertical-align:middle;animation:clignote 1s ease-in-out infinite}
+nav .dot{position:absolute;top:4px;right:calc(50% - 22px);margin:0}
+nav button{position:relative}
+@keyframes clignote{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.15;transform:scale(.7)}}
+@media (prefers-reduced-motion:reduce){.dot{animation:none}}
 .item .name{flex:1;background:none;border:0;text-align:left;padding:0;font-weight:600;overflow-wrap:anywhere}
 .item.done .name{color:var(--muted);text-decoration:line-through;font-weight:500}
 .x{flex:none;background:none;border:0;color:#B9CFC2;font-size:1.3rem;line-height:1;padding:4px 6px}
@@ -294,6 +301,12 @@ function render(){
   document.querySelectorAll("nav button").forEach(b=>b.dataset.tab===S.tab?b.setAttribute("aria-current","page"):b.removeAttribute("aria-current"));
   const todo=S.items.filter(i=>!i.done).length;
   const cnt=document.getElementById("count");cnt.textContent=todo;cnt.hidden=!todo;
+  // point rouge clignotant sur l'onglet Liste s'il y a un article urgent
+  const btnListe=document.querySelector('nav button[data-tab="liste"]');
+  const urgents=S.items.filter(i=>i.urgent&&!i.done).length;
+  let d=btnListe.querySelector(".dot");
+  if(urgents&&!d){d=document.createElement("span");d.className="dot";d.setAttribute("aria-label","Article urgent");btnListe.appendChild(d)}
+  if(!urgents&&d) d.remove();
   const keepFocus=document.activeElement&&document.activeElement.matches(".add input");
   app.replaceChildren();
   if(S.tab==="budget") renderBudget(); else if(S.tab==="liste") renderListe(); else renderTickets();
@@ -361,7 +374,7 @@ function renderListe(){
   const todo=S.items.filter(i=>!i.done),done=S.items.filter(i=>i.done);
   if(!S.items.length){app.append(h("p",{class:"empty"},h("span",{class:"big"},"🧺"),S.loaded?"La liste est vide. Ajoute ce qu’il vous faut !":"Chargement…"));return}
   for(const [id,label,e] of CATS){
-    const its=todo.filter(i=>i.cat===id);
+    const its=todo.filter(i=>i.cat===id).sort((a,b)=>(b.urgent?1:0)-(a.urgent?1:0));
     if(its.length) app.append(h("div",{class:"group"},h("h3",null,e+" "+label),h("div",{class:"card"},its.map(itemRow))));
   }
   if(!todo.length) app.append(h("p",{class:"empty"},h("span",{class:"big"},"🎉"),"Tout est dans le panier !"));
@@ -373,9 +386,11 @@ function renderListe(){
 function focusAdd(){const i=app.querySelector(".add input");if(i){i.focus();const n=i.value.length;i.setSelectionRange(n,n)}}
 function itemRow(it){
   const toggle=()=>toggleItem(it);
-  return h("div",{class:"item"+(it.done?" done":"")},
+  const urgent=it.urgent&&!it.done;
+  return h("div",{class:"item"+(it.done?" done":"")+(urgent?" urgent":"")},
     h("button",{class:"check","aria-label":(it.done?"Décocher ":"Cocher ")+it.name,onclick:toggle}),
-    h("button",{class:"name",onclick:toggle},it.name),
+    h("button",{class:"name",onclick:toggle},urgent?h("span",{class:"dot","aria-label":"Urgent"}):null,it.name),
+    it.done?null:h("button",{class:"urg","aria-pressed":String(!!it.urgent),"aria-label":(it.urgent?"Retirer l’urgence de ":"Marquer urgent ")+it.name,title:"Urgent",onclick:()=>toggleUrgent(it)},"!"),
     h("button",{class:"x","aria-label":"Supprimer "+it.name,onclick:()=>delItem(it)},"×"));
 }
 
@@ -409,6 +424,10 @@ async function addItem(raw){
   S.items.push({id:"tmp"+Date.now(),name,cat,done:false});render();focusAdd();
   try{await api("/api/items","POST",{name,cat})}catch(e){toast(e.message)}
   refresh();
+}
+async function toggleUrgent(it){
+  it.urgent=!it.urgent;render();
+  try{await api("/api/items","PATCH",{id:it.id,urgent:it.urgent})}catch(e){toast(e.message);refresh()}
 }
 async function toggleItem(it){
   it.done=!it.done;render();
