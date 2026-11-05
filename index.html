@@ -373,6 +373,8 @@ function renderListe(){
   });
   const submit=()=>addItem(input.value);
   input.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();submit()}});
+  if(ETAT_NOTIF&&ETAT_NOTIF!=="ok") app.append(h("p",{class:"status"},"🔔 "+ETAT_NOTIF));
+  if(ETAT_NOTIF==="ok") app.append(h("p",{class:"status"},"🔔 Notifications activées sur ce téléphone"));
   if(S.items.some(i=>i.urgent&&!i.done)){
     const etat=etatPastille();
     if(etat==="a_activer") app.append(h("button",{class:"link",onclick:activerPastille},"🔔 Recevoir une notification + pastille quand un article est urgent"));
@@ -455,9 +457,13 @@ async function activerPastille(){
   render();
 }
 // Abonnement aux notifications « article urgent » (une fois les notifications autorisées)
+let ETAT_NOTIF="";
 async function abonnerNotifications(){
   try{
-    if(!("serviceWorker" in navigator)||!("PushManager" in window)||Notification.permission!=="granted") return;
+    if(!("Notification" in window)){ETAT_NOTIF="Notifications non disponibles (Notification absent)";return}
+    if(Notification.permission!=="granted"){ETAT_NOTIF="Notifications non autorisées ("+Notification.permission+")";return}
+    if(!("serviceWorker" in navigator)){ETAT_NOTIF="serviceWorker absent";return}
+    if(!("PushManager" in window)){ETAT_NOTIF="PushManager absent : ouvrir l’app depuis l’icône de l’écran d’accueil";return}
     const reg=await navigator.serviceWorker.register("/sw.js");
     await navigator.serviceWorker.ready;
     let sub=await reg.pushManager.getSubscription();
@@ -469,7 +475,9 @@ async function abonnerNotifications(){
     }
     MON_ENDPOINT=sub.endpoint;
     await api("/api/push","POST",{sub:sub.toJSON()});
-  }catch(e){}
+    ETAT_NOTIF="ok";
+  }catch(e){ETAT_NOTIF="Erreur : "+(e&&e.message||e)}
+  if(S.tab==="liste") render();
 }
 // l'app ouverte se remet à jour toute seule (articles marqués urgents par l'autre)
 setTimeout(()=>{if(S.authed) abonnerNotifications()},3000);
