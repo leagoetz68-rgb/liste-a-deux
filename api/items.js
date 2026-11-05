@@ -1,5 +1,5 @@
 // Liste de courses : ajouter (POST), cocher (PATCH), supprimer (DELETE ?id= ou ?done=1).
-const { db, guard, fail, body } = require('./_lib');
+const { db, guard, fail, body, notifier } = require('./_lib');
 
 const CATS = ['fruits', 'frais', 'epicerie', 'surgeles', 'boissons', 'maison', 'autre'];
 
@@ -17,7 +17,13 @@ module.exports = async (req, res) => {
     }
     if (req.method === 'PATCH') {
       const b = body(req);
-      if (typeof b.urgent === 'boolean') await p.query('UPDATE items SET urgent = $1 WHERE id = $2', [b.urgent, Number(b.id)]);
+      if (typeof b.urgent === 'boolean') {
+        const r = await p.query('UPDATE items SET urgent = $1 WHERE id = $2 AND urgent <> $1 RETURNING name', [b.urgent, Number(b.id)]);
+        if (b.urgent && r.rows[0]) {
+          const n = await p.query('SELECT count(*)::int AS n FROM items WHERE urgent AND NOT done');
+          try { await notifier(p, '🔴 Urgent : ' + r.rows[0].name, 'À acheter vite !', req.headers['x-push-endpoint'], n.rows[0].n); } catch (e) {}
+        }
+      }
       if (typeof b.done === 'boolean') await p.query('UPDATE items SET done = $1 WHERE id = $2', [b.done, Number(b.id)]);
       return res.status(200).json({ ok: true });
     }

@@ -244,8 +244,11 @@ const S={authed:null,tab:TABS.includes(location.hash.slice(1))?location.hash.sli
   budget:300,items:[],tickets:[],loaded:false,viewMonth:curKey(),manualCat:null,draft:""};
 
 /* ---------- API ---------- */
+let MON_ENDPOINT="";
 async function api(path,method="GET",data){
-  const r=await fetch(path,{method,credentials:"same-origin",headers:data?{"Content-Type":"application/json"}:{},body:data?JSON.stringify(data):undefined});
+  const hd=data?{"Content-Type":"application/json"}:{};
+  if(MON_ENDPOINT) hd["X-Push-Endpoint"]=MON_ENDPOINT;
+  const r=await fetch(path,{method,credentials:"same-origin",headers:hd,body:data?JSON.stringify(data):undefined});
   const j=await r.json().catch(()=>({}));
   if(r.status===401&&path!=="/api/login"){S.authed=false;render();throw new Error("Connecte-toi à nouveau.")}
   if(!r.ok) throw new Error(j.error||"Erreur "+r.status);
@@ -372,7 +375,7 @@ function renderListe(){
   input.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();submit()}});
   if(S.items.some(i=>i.urgent&&!i.done)){
     const etat=etatPastille();
-    if(etat==="a_activer") app.append(h("button",{class:"link",onclick:activerPastille},"🔴 Afficher les urgences en pastille sur l’icône de l’app"));
+    if(etat==="a_activer") app.append(h("button",{class:"link",onclick:activerPastille},"🔔 Recevoir une notification + pastille quand un article est urgent"));
     else if(etat==="refuse") app.append(h("p",{class:"status"},"🔴 Pastille sur l’icône bloquée : Réglages → Notifications → Nos courses → Autoriser les notifications."));
     else if(etat==="pas_installee") app.append(h("p",{class:"status"},"🔴 Pour la pastille sur l’icône : ouvrez l’app depuis son icône sur l’écran d’accueil (iPhone à jour, iOS 16.4 ou plus)."));
   }
@@ -448,9 +451,28 @@ function etatPastille(){
 }
 async function activerPastille(){
   try{await Notification.requestPermission()}catch(e){}
+  await abonnerNotifications();
   render();
 }
+// Abonnement aux notifications « article urgent » (une fois les notifications autorisées)
+async function abonnerNotifications(){
+  try{
+    if(!("serviceWorker" in navigator)||!("PushManager" in window)||Notification.permission!=="granted") return;
+    const reg=await navigator.serviceWorker.register("/sw.js");
+    await navigator.serviceWorker.ready;
+    let sub=await reg.pushManager.getSubscription();
+    if(!sub){
+      const {key}=await api("/api/push");
+      if(!key) return;
+      const pad="=".repeat((4-key.length%4)%4),b=atob((key+pad).replace(/-/g,"+").replace(/_/g,"/"));
+      sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:Uint8Array.from(b,ch=>ch.charCodeAt(0))});
+    }
+    MON_ENDPOINT=sub.endpoint;
+    await api("/api/push","POST",{sub:sub.toJSON()});
+  }catch(e){}
+}
 // l'app ouverte se remet à jour toute seule (articles marqués urgents par l'autre)
+setTimeout(()=>{if(S.authed) abonnerNotifications()},3000);
 setInterval(()=>{if(S.authed&&document.visibilityState==="visible") refresh()},60000);
 document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&S.authed) refresh()});
 

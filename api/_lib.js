@@ -38,6 +38,11 @@ async function db() {
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
       ALTER TABLE items ADD COLUMN IF NOT EXISTS urgent BOOLEAN NOT NULL DEFAULT FALSE;
+      CREATE TABLE IF NOT EXISTS push_subs (
+        endpoint   TEXT PRIMARY KEY,
+        sub        JSONB NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
       CREATE TABLE IF NOT EXISTS tickets (
         id         SERIAL PRIMARY KEY,
         store      TEXT NOT NULL DEFAULT '',
@@ -102,4 +107,20 @@ function body(req) {
   try { return JSON.parse(req.body || '{}'); } catch (e) { return {}; }
 }
 
-module.exports = { db, guard, sessionCookie, clearCookie, fail, body, crypto };
+// ---------- Notifications (web push) ----------
+// Envoie une notification à tous les téléphones abonnés, sauf celui qui a fait l'action.
+async function notifier(p, titre, texte, saufEndpoint, badge) {
+  if (!process.env.VAPID_PUBLIC_KEY || !process.env.VAPID_PRIVATE_KEY) return;
+  const webpush = require('web-push');
+  webpush.setVapidDetails('mailto:contact@aidaux.fr', process.env.VAPID_PUBLIC_KEY, process.env.VAPID_PRIVATE_KEY);
+  const r = await p.query('SELECT endpoint, sub FROM push_subs');
+  const charge = JSON.stringify({ title: titre, body: texte, badge: badge || 0 });
+  await Promise.all(r.rows.filter(x => x.endpoint !== saufEndpoint).map(async x => {
+    try { await webpush.sendNotification(x.sub, charge, { TTL: 86400, urgency: 'high' }); }
+    catch (e) {
+      if (e.statusCode === 404 || e.statusCode === 410) await p.query('DELETE FROM push_subs WHERE endpoint = $1', [x.endpoint]);
+    }
+  }));
+}
+
+module.exports = { db, guard, sessionCookie, clearCookie, fail, body, crypto, notifier };
