@@ -307,6 +307,7 @@ function render(){
   let d=btnListe.querySelector(".dot");
   if(urgents&&!d){d=document.createElement("span");d.className="dot";d.setAttribute("aria-label","Article urgent");btnListe.appendChild(d)}
   if(!urgents&&d) d.remove();
+  majPastilleIcone(urgents);
   const keepFocus=document.activeElement&&document.activeElement.matches(".add input");
   app.replaceChildren();
   if(S.tab==="budget") renderBudget(); else if(S.tab==="liste") renderListe(); else renderTickets();
@@ -369,6 +370,8 @@ function renderListe(){
   });
   const submit=()=>addItem(input.value);
   input.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();submit()}});
+  if(pastilleAActiver()&&S.items.some(i=>i.urgent&&!i.done))
+    app.append(h("button",{class:"link",onclick:activerPastille},"🔴 Afficher les urgences en pastille sur l’icône de l’app"));
   app.append(h("h2",null,"Liste de courses 📝"),h("div",{class:"add"},input,h("button",{"aria-label":"Ajouter",onclick:submit},"+")),chips);
 
   const todo=S.items.filter(i=>!i.done),done=S.items.filter(i=>i.done);
@@ -425,6 +428,25 @@ async function addItem(raw){
   try{await api("/api/items","POST",{name,cat})}catch(e){toast(e.message)}
   refresh();
 }
+// Pastille rouge sur l'icône de l'app (écran d'accueil) = nombre d'articles urgents.
+// iPhone : il faut avoir autorisé les notifications une fois (bouton dans la Liste).
+function majPastilleIcone(n){
+  try{
+    if(!("setAppBadge" in navigator)) return;
+    if(n) navigator.setAppBadge(n).catch(()=>{}); else navigator.clearAppBadge().catch(()=>{});
+  }catch(e){}
+}
+function pastilleAActiver(){
+  return "setAppBadge" in navigator && "Notification" in window && Notification.permission==="default";
+}
+async function activerPastille(){
+  try{await Notification.requestPermission()}catch(e){}
+  render();
+}
+// l'app ouverte se remet à jour toute seule (articles marqués urgents par l'autre)
+setInterval(()=>{if(S.authed&&document.visibilityState==="visible") refresh()},60000);
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&S.authed) refresh()});
+
 async function toggleUrgent(it){
   it.urgent=!it.urgent;render();
   try{await api("/api/items","PATCH",{id:it.id,urgent:it.urgent})}catch(e){toast(e.message);refresh()}
