@@ -370,8 +370,12 @@ function renderListe(){
   });
   const submit=()=>addItem(input.value);
   input.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();submit()}});
-  if(pastilleAActiver()&&S.items.some(i=>i.urgent&&!i.done))
-    app.append(h("button",{class:"link",onclick:activerPastille},"🔴 Afficher les urgences en pastille sur l’icône de l’app"));
+  if(S.items.some(i=>i.urgent&&!i.done)){
+    const etat=etatPastille();
+    if(etat==="a_activer") app.append(h("button",{class:"link",onclick:activerPastille},"🔴 Afficher les urgences en pastille sur l’icône de l’app"));
+    else if(etat==="refuse") app.append(h("p",{class:"status"},"🔴 Pastille sur l’icône bloquée : Réglages → Notifications → Nos courses → Autoriser les notifications."));
+    else if(etat==="pas_installee") app.append(h("p",{class:"status"},"🔴 Pour la pastille sur l’icône : ouvrez l’app depuis son icône sur l’écran d’accueil (iPhone à jour, iOS 16.4 ou plus)."));
+  }
   app.append(h("h2",null,"Liste de courses 📝"),h("div",{class:"add"},input,h("button",{"aria-label":"Ajouter",onclick:submit},"+")),chips);
 
   const todo=S.items.filter(i=>!i.done),done=S.items.filter(i=>i.done);
@@ -436,8 +440,11 @@ function majPastilleIcone(n){
     if(n) navigator.setAppBadge(n).catch(()=>{}); else navigator.clearAppBadge().catch(()=>{});
   }catch(e){}
 }
-function pastilleAActiver(){
-  return "setAppBadge" in navigator && "Notification" in window && Notification.permission==="default";
+function etatPastille(){
+  if(!("setAppBadge" in navigator)||!("Notification" in window)) return "pas_installee";
+  if(Notification.permission==="granted") return "ok";
+  if(Notification.permission==="denied") return "refuse";
+  return "a_activer";
 }
 async function activerPastille(){
   try{await Notification.requestPermission()}catch(e){}
